@@ -1,0 +1,19 @@
+{
+  "name": "devops-webhook",
+  "version": "0.0.0",
+  "description": "IMR DevOps Webhook",
+  "main": "index.js",
+  "dependencies": {
+    "child_process": "^1.0.2",
+    "http": "0.0.1-security",
+    "perf_hooks": "0.0.1",
+    "uuid": "^8.3.2"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Syaiful Shah Zinan <syaifulshahzinan@gmail.com>",
+  "license": "ISC"
+}

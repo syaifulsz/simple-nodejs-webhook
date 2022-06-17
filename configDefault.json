@@ -1,0 +1,6 @@
+[
+	{
+		"url": "/test",
+		"cmd": "bash test/test.sh"
+	}
+]

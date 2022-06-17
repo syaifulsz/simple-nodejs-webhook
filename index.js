@@ -3,6 +3,16 @@ const { exec } = require( 'child_process' );
 const { performance } = require( 'perf_hooks' );
 const { v4: uuid } = require( 'uuid' );
 
+let configsCustom = null;
+try {
+    configsCustom = require( './config.json' );
+} catch ( e ) {
+
+}
+
+const configsDefault = require( './configDefault.json' );
+const configs = configsCustom || configsDefault;
+
 /**
  * App Time Formatting
  * @param time
@@ -15,6 +25,39 @@ const appTimeFormatting = time => {
 }
 
 const jobs = {};
+const jobsResponse = {};
+
+const getJobsResponse = () => {
+    const sortable = [];
+    for ( let jobsResponseIndex in jobsResponse ) {
+        sortable.push( [ jobsResponseIndex, jobsResponse[ jobsResponseIndex ] ] );
+    }
+
+    const jobResponseByLatest = sortable.sort( ( a, b ) => {
+        return b[ 1 ].started_at - a[ 1 ].started_at;
+    } );
+
+    return sortable;
+}
+
+/**
+ * Convert Date Timestamp to Date Time String
+ * 
+ * @param  {number} timestamp
+ * @return {string}
+ */
+const timestampToDateTimeString = ( timestamp ) => {
+    
+    let date = new Date( timestamp );
+    let year = date.getFullYear();
+    let month = date.getMonth() + 1;
+    let day = date.getDate();
+    let hours = date.getHours();
+    let minutes = date.getMinutes();
+    let seconds = date.getSeconds();
+
+    return year + "-" + month + "-" + day + " " + hours + ":" + minutes + ":" + seconds;
+}
 
 /**
  * Route Run Command
@@ -28,9 +71,6 @@ const routeRunCommand = ( cmd, appTimeBegin ) => {
     const runCommand = ( cmd, runCmdSuccess, runCmdError ) => {
 
         exec( cmd, ( error, stdout, stderr ) => {
-
-            console.log( stdout );
-            console.log( stderr );
 
             if ( error !== null ) {
 
@@ -61,8 +101,20 @@ const routeRunCommand = ( cmd, appTimeBegin ) => {
 
     if ( !jobsCount || ( jobsCount <= jobsCompleted ) ) {
         jobs[ jobId ] = false;
+        jobsResponse[ jobId ] = {
+            id: jobId,
+            cmd: cmd,
+            created_at: timestampToDateTimeString( new Date() ),
+            started_at: performance.now(),
+            ended_at: null,
+            elapsed_time: null,
+            response: {}
+        };
         runCommand( cmd, function ( stdout ) {
             jobs[ jobId ] = true;
+            jobsResponse[ jobId ].response = JSON.parse( stdout );
+            jobsResponse[ jobId ].ended_at = performance.now();
+            jobsResponse[ jobId ].elapsed_time = appTimeFormatting( jobsResponse[ jobId ].ended_at - jobsResponse[ jobId ].started_at );
         } );
     }
 
@@ -76,10 +128,11 @@ const routeRunCommand = ( cmd, appTimeBegin ) => {
         jobsCount: jobsCount,
         jobsCompleted: jobsCompleted,
         jobs: jobs,
-        appTimeBegin: appTimeBegin,
-        appTimeEnd: appTimeEnd,
-        appTime: ( appTimeEnd - appTimeBegin ),
-        appTimeFormatted: appTimeFormatting( appTimeEnd - appTimeBegin ),
+        jobsResponse: getJobsResponse(),
+        // appTimeBegin: appTimeBegin,
+        // appTimeEnd: appTimeEnd,
+        // appTime: ( appTimeEnd - appTimeBegin ),
+        // appTimeFormatted: appTimeFormatting( appTimeEnd - appTimeBegin )
     };
 }
 
@@ -99,13 +152,28 @@ const server = http.createServer( ( req, res ) => {
         res.write( JSON.stringify( { message: 'Hello' } ) );
         res.end();
 
-    } else if ( req.url === '/test' ) {
-        const runCommandRes = routeRunCommand( `bash test/test.sh`, appTimeBegin );
+    } else if ( req.url === '/jobs' ) {
         res.writeHead( 200, { 'Content-Type': 'application/json' } );
-        res.write( JSON.stringify( runCommandRes ) );
+        res.write( JSON.stringify( getJobsResponse() ) );
         res.end();
     } else {
-        res.end( 'Invalid Request!' );
+
+        let routeRunCommandConfig = null;
+        for ( let i in configs ) {
+            let config = configs[ i ];
+            if ( req.url === config.url ) {
+                routeRunCommandConfig = config;
+            }
+        }
+
+        if ( routeRunCommandConfig ) {
+            const runCommandRes = routeRunCommand( routeRunCommandConfig.cmd, appTimeBegin );
+            res.writeHead( 200, { 'Content-Type': 'application/json' } );
+            res.write( JSON.stringify( runCommandRes ) );
+            res.end();
+        } else {
+            res.end( 'Invalid Request!' );    
+        }
     }
 } );
 
